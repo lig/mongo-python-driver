@@ -688,6 +688,22 @@ class TestCursor(unittest.TestCase):
         self.assertTrue(isinstance(cursor2._Cursor__hint, SON))
         self.assertEqual(cursor._Cursor__hint, cursor2._Cursor__hint)
 
+    def test_find(self):
+        cursor1 = self.db.test.find({'x': 1})
+        cursor2 = cursor1.find({'y': 2})
+
+        # Original cursor must remain unchanged
+        self.assertDictEqual(cursor1._Cursor__spec, {'x': 1})
+
+        # Sub cursor should have updated query
+        self.assertDictEqual(cursor2._Cursor__spec, {'x': 1, 'y': 2})
+
+        # Test deep query updates
+        cursor1 = self.db.test.find({'x': {'$gt': 1}})
+        cursor2 = cursor1.find({'x': {'$lt': 2}})
+        self.assertDictEqual(cursor2._Cursor__spec,
+                             {'x': {'$gt': 1, '$lt': 2}})
+
     def test_deepcopy_cursor_littered_with_regexes(self):
 
         cursor = self.db.test.find({"x": re.compile("^hmmm.*"),

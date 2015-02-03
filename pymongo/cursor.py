@@ -14,7 +14,7 @@
 
 """Cursor class to iterate over Mongo query results."""
 import copy
-from collections import deque
+from collections import deque, Mapping
 
 from bson import RE_TYPE
 from bson.code import Code
@@ -81,11 +81,8 @@ class Cursor(object):
         """
         self.__id = None
 
-        if spec is None:
-            spec = {}
+        spec = self.__check_spec(spec)
 
-        if not isinstance(spec, dict):
-            raise TypeError("spec must be an instance of dict")
         if not isinstance(skip, int):
             raise TypeError("skip must be an instance of int")
         if not isinstance(limit, int):
@@ -207,6 +204,17 @@ class Cursor(object):
     def __del__(self):
         if self.__id and not self.__killed:
             self.__die()
+
+    def find(self, spec=None):
+        """Return this cursor copy with query spec updated via `spec`.
+
+        :Parameters:
+          - `spec` (optional): see :meth:`~pymongo.collection.Collection.find`.
+        """
+        spec = self.__check_spec(spec)
+        clone = self.clone()
+        clone.__dict__['_Cursor__spec'] = self.__merge_spec(spec)
+        return clone
 
     def rewind(self):
         """Rewind this cursor to its unevaluated state.
@@ -384,6 +392,28 @@ class Cursor(object):
         """
         if self.__retrieved or self.__id is not None:
             raise InvalidOperation("cannot set options after executing query")
+
+    def __check_spec(self, spec):
+        if spec is None:
+            spec = {}
+
+        if not isinstance(spec, dict):
+            raise TypeError("spec must be an instance of dict")
+
+        return spec
+
+    def __merge_spec(self, spec):
+        """ Merge spec with another one.
+        """
+        def update(d, u):
+            for k, v in u.iteritems():
+                if isinstance(v, Mapping):
+                    r = update(d.get(k, {}), v)
+                    d[k] = r
+                else:
+                    d[k] = u[k]
+            return d
+        return update(self.__spec.copy(), spec)
 
     def add_option(self, mask):
         """Set arbitrary query flags using a bitmask.
